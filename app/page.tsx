@@ -1,6 +1,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import heroImage from '../image1.jpg'
+import HomeReviews from '@/components/HomeReviews'
 
 const values = [
   {
@@ -36,24 +37,6 @@ const services = [
   'Suspension',
   'Check Engine Light',
   'Pre-Purchase Inspections',
-]
-
-const reviews = [
-  {
-    name: 'Marisol R.',
-    stars: 5,
-    text: 'Showed up on time, explained the issue clearly, and had my car running the same afternoon.',
-  },
-  {
-    name: 'Kevin T.',
-    stars: 5,
-    text: 'Fair price, no pressure, and I did not have to tow my truck across town.',
-  },
-  {
-    name: 'Angela M.',
-    stars: 4,
-    text: 'Easy scheduling and solid communication from start to finish.',
-  },
 ]
 
 export default function HomePage() {
@@ -167,22 +150,7 @@ export default function HomePage() {
           <p className="text-sm font-semibold uppercase tracking-wide text-cyan-300">
             Customer Reviews
           </p>
-          <div className="mt-8 grid gap-4 md:grid-cols-3">
-            {reviews.map((review) => (
-              <article
-                key={review.name}
-                className="rounded-lg border border-white/10 bg-white/5 p-6"
-              >
-                <p className="text-sm font-semibold text-amber-300">
-                  {review.stars}/5 stars
-                </p>
-                <p className="mt-4 leading-7 text-slate-200">
-                  &quot;{review.text}&quot;
-                </p>
-                <p className="mt-5 font-semibold">{review.name}</p>
-              </article>
-            ))}
-          </div>
+          <HomeReviews />
         </div>
       </section>
     </main>

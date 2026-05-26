@@ -13,11 +13,13 @@ export default function SignupPage() {
   const [phone, setPhone] = useState("")
   const [password, setPassword] = useState("")
   const [role, setRole] = useState("client")
+  const [message, setMessage] = useState("")
   const [loading, setLoading] = useState(false)
 
   async function handleSignup(e) {
     e.preventDefault()
     setLoading(true)
+    setMessage("")
 
     const user = {
       name,
@@ -31,6 +33,9 @@ export default function SignupPage() {
 
     window.localStorage.setItem("hmm:user", JSON.stringify(user))
     setLoading(false)
+    if (signedUp.message) {
+      setMessage(signedUp.message)
+    }
     router.push(signedUp.role === "mechanic" ? "/dashboard/mechanic" : "/onboarding")
   }
 
@@ -121,6 +126,12 @@ export default function SignupPage() {
             >
               {loading ? "Creating..." : "Continue to onboarding"}
             </button>
+
+            {message ? (
+              <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-800">
+                {message}
+              </p>
+            ) : null}
           </div>
 
           <p className="mt-5 text-center text-sm text-slate-600">
@@ -143,19 +154,39 @@ async function syncSignupToSupabase(user, password) {
   const { data, error } = await supabase.auth.signUp({
     email: user.email,
     password,
+    options: {
+      data: {
+        full_name: user.name,
+        phone: user.phone,
+        role: user.role,
+      },
+    },
   })
 
   if (error) {
-    alert(error.message)
+    const isRateLimit = error.message.toLowerCase().includes("rate limit")
+
+    return {
+      ...user,
+      message: isRateLimit
+        ? "Supabase is temporarily rate limiting signup emails, so this session is saved locally. Try logging in again later."
+        : error.message,
+    }
+  }
+
+  if (!data.user?.id) {
     return user
   }
 
-  await supabase.from("profiles").insert({
-    id: data.user?.id,
+  await supabase.from("profiles").upsert({
+    id: data.user.id,
+    email: user.email,
     full_name: user.name,
     phone: user.phone,
     role: user.role,
+  }, {
+    onConflict: "id",
   })
 
-  return { ...user, id: data.user?.id }
+  return { ...user, id: data.user.id }
 }

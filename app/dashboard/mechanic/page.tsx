@@ -1,8 +1,8 @@
 'use client'
 
-import Link from 'next/link'
 import { FormEvent, useEffect, useState } from 'react'
 import {
+  deleteCompletedTicket,
   getCurrentProfile,
   listMechanicTickets,
   saveMechanicProfile,
@@ -113,6 +113,22 @@ export default function MechanicDashboardPage() {
     )
   }
 
+  async function eraseTicket(ticketId: string) {
+    setMessage('')
+
+    try {
+      await deleteCompletedTicket(ticketId)
+    } catch (error) {
+      if (error instanceof Error) {
+        setMessage(`${error.message} Removed locally for now.`)
+      }
+    }
+
+    const updatedTickets = tickets.filter((ticket) => ticket.id !== ticketId)
+    window.localStorage.setItem('hmm:tickets', JSON.stringify(updatedTickets))
+    setTickets(updatedTickets)
+  }
+
   return (
     <main className="min-h-screen bg-zinc-950 px-6 py-10 text-zinc-100">
       <section className="mx-auto max-w-6xl">
@@ -125,12 +141,6 @@ export default function MechanicDashboardPage() {
               Incoming tickets
             </h1>
           </div>
-          <Link
-            href="/dashboard"
-            className="rounded-md bg-white px-4 py-3 text-center font-semibold text-zinc-950 hover:bg-zinc-200"
-          >
-            Client view
-          </Link>
         </div>
 
         {message ? (
@@ -200,6 +210,7 @@ export default function MechanicDashboardPage() {
                   key={ticket.id}
                   ticket={ticket}
                   onStatusChange={changeTicketStatus}
+                  onErase={eraseTicket}
                 />
               ))
             ) : (
@@ -217,9 +228,11 @@ export default function MechanicDashboardPage() {
 function TicketCard({
   ticket,
   onStatusChange,
+  onErase,
 }: {
   ticket: Ticket
   onStatusChange: (ticketId: string, status: TicketStatus) => void
+  onErase: (ticketId: string) => void
 }) {
   return (
     <article className="rounded-lg border border-zinc-800 bg-zinc-900 p-6">
@@ -274,6 +287,14 @@ function TicketCard({
             {status}
           </button>
         ))}
+        {ticket.status === 'Completed' ? (
+          <button
+            onClick={() => onErase(ticket.id)}
+            className="rounded-md bg-zinc-100 px-3 py-2 text-sm font-bold text-zinc-950 hover:bg-white"
+          >
+            Erase
+          </button>
+        ) : null}
       </div>
     </article>
   )

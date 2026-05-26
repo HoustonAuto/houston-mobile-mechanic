@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
-import { listClientTickets } from '@/lib/serviceRequests'
+import { createReview, listClientTickets } from '@/lib/serviceRequests'
 
 const fallbackTickets = []
 
@@ -89,6 +89,7 @@ function TicketCard({ ticket }) {
   const acceptedNotice =
     ticket.status === 'Accepted' || ticket.status === 'In Progress'
   const deniedNotice = ticket.status === 'Denied'
+  const completedNotice = ticket.status === 'Completed'
 
   return (
     <article className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
@@ -117,6 +118,10 @@ function TicketCard({ ticket }) {
         </p>
       ) : null}
 
+      {completedNotice ? (
+        <ReviewForm ticketId={ticket.id} />
+      ) : null}
+
       <dl className="mt-5 grid gap-4 text-sm md:grid-cols-2">
         <div>
           <dt className="font-semibold text-slate-500">Problem</dt>
@@ -132,6 +137,79 @@ function TicketCard({ ticket }) {
         </div>
       </dl>
     </article>
+  )
+}
+
+function ReviewForm({ ticketId }) {
+  const [rating, setRating] = useState('5')
+  const [name, setName] = useState('')
+  const [comment, setComment] = useState('')
+  const [message, setMessage] = useState('')
+
+  async function submitReview(event) {
+    event.preventDefault()
+    const review = {
+      id: crypto.randomUUID(),
+      ticket_id: ticketId,
+      client_name: name || 'Houston customer',
+      rating: Number(rating),
+      comment,
+      created_at: new Date().toISOString(),
+    }
+
+    try {
+      await createReview(review)
+      setMessage('Thanks. Your review was posted.')
+    } catch {
+      const localReviews = JSON.parse(
+        window.localStorage.getItem('hmm:reviews') || '[]'
+      )
+      window.localStorage.setItem(
+        'hmm:reviews',
+        JSON.stringify([review, ...localReviews])
+      )
+      setMessage('Thanks. Your review was saved.')
+    }
+
+    setComment('')
+  }
+
+  return (
+    <form
+      onSubmit={submitReview}
+      className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4"
+    >
+      <h3 className="font-bold">How was the service?</h3>
+      <div className="mt-4 grid gap-3 md:grid-cols-[1fr_120px]">
+        <input
+          className="rounded-md border border-slate-300 px-3 py-2"
+          placeholder="Your name"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+        />
+        <select
+          className="rounded-md border border-slate-300 px-3 py-2"
+          value={rating}
+          onChange={(event) => setRating(event.target.value)}
+        >
+          <option value="5">5 stars</option>
+          <option value="4">4 stars</option>
+          <option value="3">3 stars</option>
+        </select>
+      </div>
+      <textarea
+        required
+        rows={3}
+        className="mt-3 w-full rounded-md border border-slate-300 px-3 py-2"
+        placeholder="Write a short review"
+        value={comment}
+        onChange={(event) => setComment(event.target.value)}
+      />
+      <button className="mt-3 rounded-md bg-cyan-600 px-4 py-2 font-semibold text-white hover:bg-cyan-700">
+        Post review
+      </button>
+      {message ? <p className="mt-3 text-sm text-slate-600">{message}</p> : null}
+    </form>
   )
 }
 

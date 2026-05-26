@@ -9,21 +9,35 @@ export default function LoginPage() {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
 
   async function handleLogin(event) {
     event.preventDefault()
     setLoading(true)
+    setMessage('')
 
     const existingUser = window.localStorage.getItem('hmm:user')
-    const fallbackUser = existingUser
+    const savedUser = existingUser
       ? JSON.parse(existingUser)
-      : { email, role: 'client' }
-    const user = await syncLoginToSupabase(email, password, fallbackUser)
+      : null
+    const fallbackUser =
+      savedUser?.email?.toLowerCase() === email.toLowerCase()
+        ? savedUser
+        : { email, role: 'client' }
+    const result = await syncLoginToSupabase(email, password, fallbackUser)
 
-    window.localStorage.setItem('hmm:user', JSON.stringify(user))
+    if (!result.user) {
+      setMessage(result.message)
+      setLoading(false)
+      return
+    }
+
+    window.localStorage.setItem('hmm:user', JSON.stringify(result.user))
     setLoading(false)
-    router.push(user.role === 'mechanic' ? '/dashboard/mechanic' : '/dashboard')
+    router.push(
+      result.user.role === 'mechanic' ? '/dashboard/mechanic' : '/dashboard'
+    )
   }
 
   return (
@@ -68,6 +82,18 @@ export default function LoginPage() {
           {loading ? 'Logging in...' : 'Log in'}
         </button>
 
+        {message ? (
+          <p className="mt-4 rounded-md bg-amber-50 p-3 text-sm text-amber-800">
+            {message}
+          </p>
+        ) : null}
+
+        <p className="mt-4 text-center text-sm">
+          <Link className="font-semibold text-cyan-700" href="/forgot-password">
+            Forgot password?
+          </Link>
+        </p>
+
         <p className="mt-5 text-center text-sm text-slate-600">
           New here?{' '}
           <Link className="font-semibold text-cyan-700" href="/signup">
@@ -81,7 +107,7 @@ export default function LoginPage() {
 
 async function syncLoginToSupabase(email, password, fallbackUser) {
   if (!supabase) {
-    return fallbackUser
+    return { user: fallbackUser }
   }
 
   const { data, error } = await supabase.auth.signInWithPassword({
@@ -90,8 +116,10 @@ async function syncLoginToSupabase(email, password, fallbackUser) {
   })
 
   if (error) {
-    alert(error.message)
-    return fallbackUser
+    return {
+      user: null,
+      message: 'Login failed. Check your email and password.',
+    }
   }
 
   const { data: profile } = await supabase
@@ -101,10 +129,12 @@ async function syncLoginToSupabase(email, password, fallbackUser) {
     .single()
 
   return {
-    id: data.user.id,
-    name: profile?.full_name || fallbackUser.name || '',
-    email: data.user.email || email,
-    phone: profile?.phone || fallbackUser.phone || '',
-    role: profile?.role || fallbackUser.role || 'client',
+    user: {
+      id: data.user.id,
+      name: profile?.full_name || fallbackUser.name || '',
+      email: data.user.email || email,
+      phone: profile?.phone || fallbackUser.phone || '',
+      role: profile?.role || 'client',
+    },
   }
 }

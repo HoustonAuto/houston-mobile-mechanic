@@ -12,6 +12,7 @@ export type TicketStatus = (typeof ticketStatuses)[number]
 
 export type Profile = {
   id?: string
+  email?: string
   full_name?: string
   phone?: string
   role?: 'client' | 'mechanic'
@@ -29,6 +30,17 @@ export type Ticket = {
   contact_info: string
   status: TicketStatus
   client_notified_at?: string | null
+  accepted_email_sent_at?: string | null
+  created_at?: string
+}
+
+export type Review = {
+  id: string
+  ticket_id?: string
+  client_id?: string
+  client_name: string
+  rating: number
+  comment: string
   created_at?: string
 }
 
@@ -50,7 +62,7 @@ export async function getCurrentProfile() {
     .eq('id', user.id)
     .single()
 
-  return data ? ({ ...data, email: user.email } as Profile & { email?: string }) : null
+  return data ? ({ ...data, email: user.email } as Profile) : null
 }
 
 export async function createClientTicket(input: {
@@ -109,7 +121,6 @@ export async function listMechanicTickets() {
   const { data } = await supabase
     .from('tickets')
     .select('*')
-    .in('status', ['Pending', 'Denied', 'Accepted', 'In Progress'])
     .order('created_at', { ascending: false })
 
   return (data || []) as Ticket[]
@@ -175,5 +186,87 @@ export async function updateTicketStatus(
 
   if (error) {
     throw error
+  }
+
+  if (status === 'Accepted') {
+    await notifyTicketAccepted(ticketId)
+  }
+}
+
+export async function deleteCompletedTicket(ticketId: string) {
+  if (!supabase) {
+    throw new Error('Supabase is not configured.')
+  }
+
+  const { error } = await supabase
+    .from('tickets')
+    .delete()
+    .eq('id', ticketId)
+    .eq('status', 'Completed')
+
+  if (error) {
+    throw error
+  }
+}
+
+export async function createReview(input: {
+  ticket_id: string
+  client_name: string
+  rating: number
+  comment: string
+}) {
+  if (!supabase) {
+    throw new Error('Supabase is not configured.')
+  }
+
+  const { data: authData } = await supabase.auth.getUser()
+  const user = authData.user
+
+  if (!user) {
+    throw new Error('Please log in before leaving a review.')
+  }
+
+  const { error } = await supabase.from('reviews').insert({
+    ...input,
+    client_id: user.id,
+  })
+
+  if (error) {
+    throw error
+  }
+}
+
+export async function listPublishedReviews() {
+  if (!supabase) {
+    return []
+  }
+
+  const { data } = await supabase
+    .from('reviews')
+    .select('*')
+    .eq('approved', true)
+    .order('created_at', { ascending: false })
+    .limit(6)
+
+  return (data || []) as Review[]
+}
+
+async function notifyTicketAccepted(ticketId: string) {
+  if (!supabase) {
+    return
+  }
+
+  const { error } = await supabase.functions.invoke(
+    'send-ticket-accepted-email',
+    {
+      body: { ticketId },
+    }
+  )
+
+  if (!error) {
+    await supabase
+      .from('tickets')
+      .update({ accepted_email_sent_at: new Date().toISOString() })
+      .eq('id', ticketId)
   }
 }
