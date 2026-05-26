@@ -27,10 +27,11 @@ export default function SignupPage() {
       signedUpAt: new Date().toISOString(),
     }
 
-    window.localStorage.setItem("hmm:user", JSON.stringify(user))
+    const signedUp = await syncSignupToSupabase(user, password)
 
-    syncSignupToSupabase(user, password)
-    router.push("/onboarding")
+    window.localStorage.setItem("hmm:user", JSON.stringify(user))
+    setLoading(false)
+    router.push(signedUp.role === "mechanic" ? "/dashboard/mechanic" : "/onboarding")
   }
 
   return (
@@ -136,7 +137,7 @@ export default function SignupPage() {
 
 async function syncSignupToSupabase(user, password) {
   if (!supabase) {
-    return
+    return user
   }
 
   const { data, error } = await supabase.auth.signUp({
@@ -145,7 +146,8 @@ async function syncSignupToSupabase(user, password) {
   })
 
   if (error) {
-    return
+    alert(error.message)
+    return user
   }
 
   await supabase.from("profiles").insert({
@@ -154,4 +156,6 @@ async function syncSignupToSupabase(user, password) {
     phone: user.phone,
     role: user.role,
   })
+
+  return { ...user, id: data.user?.id }
 }

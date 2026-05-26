@@ -11,15 +11,18 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
 
-  function handleLogin(event) {
+  async function handleLogin(event) {
     event.preventDefault()
     setLoading(true)
 
     const existingUser = window.localStorage.getItem('hmm:user')
-    const user = existingUser ? JSON.parse(existingUser) : { email, role: 'client' }
+    const fallbackUser = existingUser
+      ? JSON.parse(existingUser)
+      : { email, role: 'client' }
+    const user = await syncLoginToSupabase(email, password, fallbackUser)
 
-    syncLoginToSupabase(email, password)
     window.localStorage.setItem('hmm:user', JSON.stringify(user))
+    setLoading(false)
     router.push(user.role === 'mechanic' ? '/dashboard/mechanic' : '/dashboard')
   }
 
@@ -76,13 +79,32 @@ export default function LoginPage() {
   )
 }
 
-async function syncLoginToSupabase(email, password) {
+async function syncLoginToSupabase(email, password, fallbackUser) {
   if (!supabase) {
-    return
+    return fallbackUser
   }
 
-  await supabase.auth.signInWithPassword({
+  const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
   })
+
+  if (error) {
+    alert(error.message)
+    return fallbackUser
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', data.user.id)
+    .single()
+
+  return {
+    id: data.user.id,
+    name: profile?.full_name || fallbackUser.name || '',
+    email: data.user.email || email,
+    phone: profile?.phone || fallbackUser.phone || '',
+    role: profile?.role || fallbackUser.role || 'client',
+  }
 }

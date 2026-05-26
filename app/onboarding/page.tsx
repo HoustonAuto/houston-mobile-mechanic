@@ -1,7 +1,8 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { FormEvent, useMemo, useSyncExternalStore } from 'react'
+import { FormEvent, useMemo, useState, useSyncExternalStore } from 'react'
+import { createClientTicket } from '@/lib/serviceRequests'
 
 type StoredUser = {
   name?: string
@@ -11,6 +12,8 @@ type StoredUser = {
 
 export default function OnboardingPage() {
   const router = useRouter()
+  const [message, setMessage] = useState('')
+  const [saving, setSaving] = useState(false)
   const storedUser = useSyncExternalStore(
     subscribeToStorage,
     () => window.localStorage.getItem('hmm:user') || '',
@@ -21,19 +24,44 @@ export default function OnboardingPage() {
     [storedUser]
   )
 
-  function saveVehicle(event: FormEvent<HTMLFormElement>) {
+  async function saveTicket(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    setSaving(true)
+    setMessage('')
+
     const formData = new FormData(event.currentTarget)
 
-    const vehicle = {
-      vin: String(formData.get('vin') || '').trim(),
-      licensePlate: String(formData.get('licensePlate') || '').trim(),
-      issue: String(formData.get('issue') || '').trim(),
-      status: 'New request',
+    const ticket = {
+      id: crypto.randomUUID(),
+      vehicle_address: String(formData.get('vehicleAddress') || '').trim(),
+      description: String(formData.get('description') || '').trim(),
+      contact_info: String(formData.get('contactInfo') || '').trim(),
+      status: 'Pending',
       createdAt: new Date().toISOString(),
     }
 
-    window.localStorage.setItem('hmm:vehicle', JSON.stringify(vehicle))
+    try {
+      await createClientTicket({
+        vehicle_address: ticket.vehicle_address,
+        description: ticket.description,
+        contact_info: ticket.contact_info,
+      })
+    } catch (error) {
+      const existingTickets = JSON.parse(
+        window.localStorage.getItem('hmm:tickets') || '[]'
+      )
+
+      window.localStorage.setItem(
+        'hmm:tickets',
+        JSON.stringify([ticket, ...existingTickets])
+      )
+
+      if (error instanceof Error) {
+        setMessage(error.message)
+      }
+    }
+
+    setSaving(false)
     router.push(user.role === 'mechanic' ? '/dashboard/mechanic' : '/dashboard')
   }
 
@@ -43,49 +71,59 @@ export default function OnboardingPage() {
         <p className="text-sm font-semibold uppercase tracking-wide text-cyan-700">
           Vehicle intake
         </p>
-        <h1 className="mt-3 text-4xl font-bold">Tell us what needs attention.</h1>
+        <h1 className="mt-3 text-4xl font-bold">Create a service request.</h1>
         <p className="mt-4 max-w-2xl text-slate-600">
-          Add the VIN, plate, and the issue you are seeing so the right repair
-          details are ready on your dashboard.
+          Share the vehicle location, issue, and best contact details so a
+          mechanic can review and respond.
         </p>
 
         <form
-          onSubmit={saveVehicle}
+          onSubmit={saveTicket}
           className="mt-8 rounded-lg border border-slate-200 bg-slate-50 p-6"
         >
-          <div className="grid gap-5 md:grid-cols-2">
-            <label className="block text-sm font-medium">
-              VIN
-              <input
-                name="vin"
-                className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2"
-                placeholder="1HGCM82633A004352"
-              />
-            </label>
-
-            <label className="block text-sm font-medium">
-              License plate
-              <input
-                name="licensePlate"
-                className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2"
-                placeholder="TX ABC1234"
-              />
-            </label>
-          </div>
+          <label className="block text-sm font-medium">
+            Vehicle address or location
+            <input
+              required
+              name="vehicleAddress"
+              className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2"
+              placeholder="1234 Main St, Houston, TX 77002"
+            />
+          </label>
 
           <label className="mt-5 block text-sm font-medium">
-            What is going on?
+            Description of the issue
             <textarea
               required
-              name="issue"
+              name="description"
               rows={5}
               className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2"
               placeholder="Truck will crank but not start. Battery was replaced last month."
             />
           </label>
 
-          <button className="mt-6 rounded-md bg-cyan-600 px-5 py-3 font-semibold text-white hover:bg-cyan-700">
-            Save and open dashboard
+          <label className="mt-5 block text-sm font-medium">
+            Contact information
+            <textarea
+              required
+              name="contactInfo"
+              rows={3}
+              className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2"
+              placeholder="Name, phone, email, and best time to reach you."
+            />
+          </label>
+
+          {message ? (
+            <p className="mt-4 rounded-md bg-amber-50 p-3 text-sm text-amber-800">
+              {message} Saved locally until the database is connected.
+            </p>
+          ) : null}
+
+          <button
+            disabled={saving}
+            className="mt-6 rounded-md bg-cyan-600 px-5 py-3 font-semibold text-white hover:bg-cyan-700 disabled:opacity-70"
+          >
+            {saving ? 'Creating...' : 'Create ticket'}
           </button>
         </form>
       </section>
