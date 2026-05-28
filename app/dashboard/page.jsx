@@ -2,7 +2,9 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import MapEmbed from '@/components/MapEmbed'
 import { createReview, listClientTickets } from '@/lib/serviceRequests'
+import { isSupabaseConfigured } from '@/lib/supabase'
 
 const fallbackTickets = []
 
@@ -29,7 +31,13 @@ export default function DashboardPage() {
       )
 
       if (active) {
-        setTickets(databaseTickets.length ? databaseTickets : localTickets)
+        setTickets(
+          isSupabaseConfigured
+            ? databaseTickets
+            : databaseTickets.length
+              ? databaseTickets
+              : localTickets
+        )
         setLoading(false)
       }
     }
@@ -136,6 +144,26 @@ function TicketCard({ ticket }) {
           </dd>
         </div>
       </dl>
+
+      {ticket.mechanic ? (
+        <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
+          <h3 className="font-bold">Assigned mechanic</h3>
+          <p className="mt-2 text-sm text-slate-700">
+            {ticket.mechanic.company_name ||
+              ticket.mechanic.full_name ||
+              'Mechanic'}
+          </p>
+          <p className="mt-1 text-sm text-slate-600">
+            {ticket.mechanic.contact_info ||
+              ticket.mechanic.phone ||
+              'Contact details not listed'}
+          </p>
+          <MapEmbed
+            address={ticket.mechanic.garage_address}
+            title="Mechanic garage location"
+          />
+        </div>
+      ) : null}
     </article>
   )
 }

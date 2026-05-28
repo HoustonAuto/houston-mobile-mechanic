@@ -1,6 +1,8 @@
 'use client'
 
 import { FormEvent, useEffect, useState } from 'react'
+import MapEmbed from '@/components/MapEmbed'
+import { isSupabaseConfigured } from '@/lib/supabase'
 import {
   deleteCompletedTicket,
   getCurrentProfile,
@@ -35,7 +37,13 @@ export default function MechanicDashboardPage() {
       )
 
       if (active) {
-        setTickets(databaseTickets.length ? databaseTickets : localTickets)
+        setTickets(
+          isSupabaseConfigured
+            ? databaseTickets
+            : databaseTickets.length
+              ? databaseTickets
+              : localTickets
+        )
         setProfile({
           company_name: databaseProfile?.company_name || '',
           garage_address: databaseProfile?.garage_address || '',
@@ -264,6 +272,8 @@ function TicketCard({
           </dd>
         </div>
       </dl>
+
+      <MapEmbed address={ticket.vehicle_address} title="Job vehicle location" />
 
       <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-5">
         <button

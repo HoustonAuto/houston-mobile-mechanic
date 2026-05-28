@@ -19,6 +19,13 @@ export default function Navbar() {
       </Link>
 
       <Link
+        href="/mechanics"
+        className="rounded-md border border-cyan-400 px-4 py-2 font-semibold text-cyan-100 hover:bg-cyan-400 hover:text-slate-950"
+      >
+        Mechanics
+      </Link>
+
+      <Link
         href="/signup"
         className="rounded-md border border-cyan-400 px-4 py-2 font-semibold text-cyan-100 hover:bg-cyan-400 hover:text-slate-950"
       >

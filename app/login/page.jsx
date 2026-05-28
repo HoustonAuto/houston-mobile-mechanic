@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { isSupabaseConfigured, supabase } from '@/lib/supabase'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -128,13 +128,40 @@ async function syncLoginToSupabase(email, password, fallbackUser) {
     .eq('id', data.user.id)
     .single()
 
+  const resolvedProfile =
+    profile ||
+    (await createMissingProfileFromAuthUser(data.user, fallbackUser))
+
   return {
     user: {
       id: data.user.id,
-      name: profile?.full_name || fallbackUser.name || '',
+      name: resolvedProfile?.full_name || fallbackUser.name || '',
       email: data.user.email || email,
-      phone: profile?.phone || fallbackUser.phone || '',
-      role: profile?.role || 'client',
+      phone: resolvedProfile?.phone || fallbackUser.phone || '',
+      role: resolvedProfile?.role || 'client',
     },
   }
+}
+
+async function createMissingProfileFromAuthUser(user, fallbackUser) {
+  if (!isSupabaseConfigured || !supabase) {
+    return fallbackUser
+  }
+
+  const metadata = user.user_metadata || {}
+  const profile = {
+    id: user.id,
+    email: user.email,
+    full_name: metadata.full_name || fallbackUser.name || '',
+    phone: metadata.phone || fallbackUser.phone || '',
+    role: metadata.role || 'client',
+  }
+
+  const { data } = await supabase
+    .from('profiles')
+    .upsert(profile, { onConflict: 'id' })
+    .select('*')
+    .single()
+
+  return data || profile
 }

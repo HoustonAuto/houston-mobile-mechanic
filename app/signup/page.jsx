@@ -24,19 +24,24 @@ export default function SignupPage() {
     const user = {
       name,
       email,
-      phone,
+      phone: normalizePhone(phone),
       role,
       signedUpAt: new Date().toISOString(),
     }
 
-    const signedUp = await syncSignupToSupabase(user, password)
+  const signedUp = await syncSignupToSupabase(user, password)
 
-    window.localStorage.setItem("hmm:user", JSON.stringify(user))
     setLoading(false)
-    if (signedUp.message) {
+
+    if (!signedUp.ok) {
       setMessage(signedUp.message)
+      return
     }
-    router.push(signedUp.role === "mechanic" ? "/dashboard/mechanic" : "/onboarding")
+
+    window.localStorage.setItem("hmm:user", JSON.stringify(signedUp.user))
+    router.push(
+      signedUp.user.role === "mechanic" ? "/dashboard/mechanic" : "/onboarding"
+    )
   }
 
   return (
@@ -148,8 +153,10 @@ export default function SignupPage() {
 
 async function syncSignupToSupabase(user, password) {
   if (!supabase) {
-    return user
+    return { ok: true, user }
   }
+
+  await supabase.auth.signOut()
 
   const { data, error } = await supabase.auth.signUp({
     email: user.email,
@@ -167,18 +174,28 @@ async function syncSignupToSupabase(user, password) {
     const isRateLimit = error.message.toLowerCase().includes("rate limit")
 
     return {
-      ...user,
+      ok: false,
       message: isRateLimit
-        ? "Supabase is temporarily rate limiting signup emails, so this session is saved locally. Try logging in again later."
+        ? "Supabase is temporarily rate limiting signup emails. Please wait a few minutes, then try again."
         : error.message,
     }
   }
 
   if (!data.user?.id) {
-    return user
+    const existingLogin = await tryExistingLogin(user, password)
+
+    if (existingLogin.ok) {
+      return existingLogin
+    }
+
+    return {
+      ok: false,
+      message:
+        "Supabase did not return a new user. This usually means the email already exists or needs confirmation. Check your inbox, then try logging in.",
+    }
   }
 
-  await supabase.from("profiles").upsert({
+  const { error: profileError } = await supabase.from("profiles").upsert({
     id: data.user.id,
     email: user.email,
     full_name: user.name,
@@ -188,5 +205,47 @@ async function syncSignupToSupabase(user, password) {
     onConflict: "id",
   })
 
-  return { ...user, id: data.user.id }
+  if (profileError) {
+    console.warn("Profile upsert skipped after signup.")
+  }
+
+  return { ok: true, user: { ...user, id: data.user.id } }
+}
+
+async function tryExistingLogin(user, password) {
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: user.email,
+    password,
+  })
+
+  if (error || !data.user?.id) {
+    return { ok: false }
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", data.user.id)
+    .single()
+
+  return {
+    ok: true,
+    user: {
+      ...user,
+      id: data.user.id,
+      name: profile?.full_name || user.name,
+      phone: profile?.phone || user.phone,
+      role: profile?.role || user.role,
+    },
+  }
+}
+
+function normalizePhone(value) {
+  const digits = value.replace(/\D/g, '').slice(0, 15)
+
+  if (digits.length === 10) {
+    return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`
+  }
+
+  return digits
 }

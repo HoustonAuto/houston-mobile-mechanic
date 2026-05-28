@@ -68,6 +68,16 @@ export default function HomeReviews() {
             &quot;{review.comment}&quot;
           </p>
           <p className="mt-5 font-semibold">{review.client_name}</p>
+          {review.mechanic_name ? (
+            <p className="mt-1 text-sm text-slate-400">
+              Mechanic: {review.mechanic_name}
+            </p>
+          ) : null}
+          {review.created_at ? (
+            <p className="mt-1 text-sm text-slate-400">
+              {new Date(review.created_at).toLocaleDateString()}
+            </p>
+          ) : null}
         </article>
       ))}
     </div>
